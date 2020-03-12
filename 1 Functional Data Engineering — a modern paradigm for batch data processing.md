@@ -35,7 +35,7 @@ Reproducibility and replicability are the foundation to the scientific method. T
 
 Immutable data long with versioned logic are key to reproducibility.
 
-It allows one to create a story as raw data is inputed into a function that will always work the same way. This means The data can also be traced through a backfilled recreation process.
+It allows one to create a story as raw data is inputed into a function that will always work the same way. This means if data in corrupted, the new correct version can be passed through the same date pipelin and give the corrected data.
 
 ### Pure tasks
 
@@ -83,7 +83,7 @@ def func taxes(data, year, tax_operation) => tax report
 
 Also note that in many business rules changes over time are best expressed with data as opposed to code. In those cases it's desirable to store this information in 'parameter tables' using effective dates, and have logic that joins and apply the right parameters for the facts being processed. An oversimplfied example of this would be a 'taxation rate' table that would detail the rates and effect periods, as opposed to hard-coded rates wrapped in conditional blocks of code.  
 
-Take-away: have the data use data columns to extract from. Don't hard code operations subject to change.  
+Take-away: have the data include date columns to extract from. Don't hard code operations subject to change.  
 
 ### But what about dimensions?
 
@@ -112,6 +112,53 @@ For example, in this Airflow 'tree view' where squares represent task instances 
 As a side note, Airflow was designed with functional data engineering in mind, and provides a solid framework to orchrestrate idempotent, pure-tasks at scale. The author of this post also happens to be the creator of Airflow, so no wonder the tooling works well with the methodology prescribed here.  
 
 ### A DAG of partitions
+
+While you may think of your workflow as a directed acyclic graph (DAG) of tasks, and of your data lineage as a graph made of tables as nodes, the functional approach allows you to conceptualize a more accurate picture made out of task instances and partitions. In this more detailed graph, we move away from individual rows or cells being the "atomic state" that can be mutated to a place where partitions are the smallest unit taht can be changed by tasks.  
+
+This data lineage graph of partitions is much easier to conceptualize to the alternative where any row could have been computed by any task. With this partition-lineage graph, things become clearer. The lineage of any given row can be mapped to a specific task instance through its partition, and by following the graph upstream it's possible to understand the full lineage as a set of partitions and related task instances. 
+
+### Past dependencies
+
+A common pattern that leads to increased "state complexity" is when a partition depends on a previous partition on the same table. This leads to growing complexity linearly over time. If for instance, computing the latest partition of your user dimension uses the previous partition of the same table, and the table has 3 years of history with daily snapshot, the depth of the resulting graph grows beyond a thosand and the complexity of thee graph grows linearly over time. Strictly speaking, if we had to reprocess data from a few months back, we may need to reporicess hundreds of parition using DAG that **cannot be parallelized (since order maters)**  
+
+
+![example](https://miro.medium.com/max/2892/1*flGEwSAfWsOBkk7PIa-QbQ.jpeg)
+
+Given that backfills are common and that past dependencies lead to highdepth DAGs with limited parallelization, it's a good practice to avoid modeling using past-dependencies whenever possible.  
+
+In case where cumulative-type metrics are neessary (think live-to-date customers spending as part of a customer dimension for instance), one option is to model the computation of this metric in a specialized framework or somewhat independent model optimizated for that purpose. A cumulative computation framework could be a topic for an entire other blog post, let's leave this out of scope for this post.
+
+### Late arriving facts
+
+Late arriving facts can be problematic with a strict immutable data policy. Unfortunately late arriving data is fairly common, especially in given the popularity of mobil phones and occasional instability of netwowrks.  
+
+To bring clairty around this not-so-special case, the first thing to do is dissociate the event's time from the vent's reception of processing time. When late arriving facts may exist and need to be handled, time partitioning should always be done on even processing time. This allows for landing immutable blocks of data without delay, in a predictable fashion.  
+
+This effectively brings in two tightly related time dimensions to your analytics and allow to do intricate analysis specific to late-arriving facts. Knowing when events were reported in relation to when they occured is useful. It allows for showing figures like "total sales in Febuary as of today", "total sales in Febuary as of March 1st" or "how much sales adjusts on Febuary since March 1st". This effectively provides a time machine that allows you to understand what reality looked like at any point in time.  
+
+When defining your partitioning scheme based on event-processing time, it means that your data is no longer partitioned on even time, and means that your queries that will typically have predicates on even time won't be able to benefit from partition pruning (where the database only bothers to read a subset of the partitions). It's clearly an expensive tradeoff. There are a few ways to mitigate this. One option is to partition on both time dimensions, this hsould lead to relatively low factor of partition multiplication, but raises the complexity of the model. Another option is to author queries that apply predicates on both event time and on relatively wider window of processing time where partition pruning is needed. Also note that in some cases, read-optimized stores may not suffer much from the inability of the database optimizer to skip partitions through pruning as execution engine optimizations can kick in to reach comparable performance. For example, if your engine is processing ORC or Parquet files, the execution will be limited to reading the file header before moving on to the next file.  
+
+### A standard deviation
+
+Rules are meant to be broken and in some cases it is rational to do so. A common pattern we have observed is to trade perfect immutability guarantees in exchange for earlier SLAs. Let us take an example where we want to compute aggregates that depend on the user dimension, but the user dimension usually lands very late in the day. Perhaps we can more about our aggregate landing early in the day than we care about accuracy. Given this preference, it's possible to join onto the latest partition available at the time the other dependencies are met. Note that this can easily limit to a specified time range (say 2-3 partitions) to insure a minimum level of accuracy. Of course this means that re-processing the aggregation table later in the future may lead to slightly different results.  
+
+> SELECT
+    {...}
+  FROM fact_sales a
+  JOIN dim_user b ON
+      a.user_id = b.user_id AND
+      b.ds = '{{ latest_partition("dim_user") }}'
+  WHERE a.ds = '{{ ds}}'
+  
+### In retrospect
+
+While this post may be a first in formalizing the functional approach to data engineering, tehse practices are not experimental or new by any means. Large, data driven, analytically mature corporations have been applying these methods for years, and reputable tooling that prescribes this approach has been widely adopted in the industry.  
+
+It's clear that the functional approach contrasts with decades of data-warehousing literature and practices. It's arguable that this new approach is more aligned with how modern read-optmized databases function as they tend to use immutable blocks or segments and typically don't allow for row level mutations. This methodology alsow skews on treating storage as cheap and engineering time as expensive, duplicating data for the sake of clarity and reproducibility.
+
+At the time where Ralph Kimball authored 'The Datawarehouse Toolkit', databases used for warehousing were highly mutable, and data teams were small and highly specialized. Things have changed quite a bit since then. Data is larger, read-optimized stores are typically built on top of immutable blocks, we have seen the rise of distributed systems, and the number and proportion of people partaking in the "analytics process" has exploded.  
+
+More importantly given that this methodology leads to more manageable and maintainable workloads, it empowers larger teams to push the boundaries of what's possible further by using reproducible and scalable practices.  
 
 # Outside Notes  
 
