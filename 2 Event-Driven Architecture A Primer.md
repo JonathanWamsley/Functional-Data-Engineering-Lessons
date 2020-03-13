@@ -55,3 +55,74 @@ This is an abstract pattern so remmeber that the type of queueing techonolgy you
 
 > Applied to the bus system metaphor, imagine that a bus needs to have its brakes replaced and oil changed, and individual would beresponsible for dropping the bus off to the mechanic that will replace the brakes. Once the mechanic was done, should would inform the mediator wou would then deliver the bus to the mechanic charged with replacing the oil.
 
+### Broker Topology
+
+In broker topology, as illustrated in Figure 2, rather than leaverage a centralized mediator for for orchrestrating event and services, services subscribe to channels, execute their business logic, and then publish a new message to which other services subscribe. An advantage of this approach is that be removing the need for a mediator you have reduced complexity. The disadvantage is that coordination and enforcement of execution order are not handled. Again, the pattern is agnostic to technolgy.  
+
+![fig 2](https://miro.medium.com/max/1427/1*EfgHczAOIpZXjtRs5yhvbQ.png)
+
+> Applied to the same school bus system metaphor, if a bus has to have it's brakes repaced and then the oil changed, in a broker topology, the bus would be dropped off to the mechanic replacing the brakes. Once the job was done, he'd put it in the parking lot where the oil-changing technician would know to look and pull into the garage to change the oil. Irealize that example is a stretch but you get the point. 
+
+### Performance
+
+In EDA, there are two important factors for performance, throughput and latency. The greater the latency, the lower the throughput. You ahve two options to continue to improve performance of your system: decrease latency by optimizing code or configurations, or increase throughput by adding additional resources.  
+
+When it comes to measuring performance, I recommend that your team define Service Level Objectives (SLO) and Service Level Indicators (SLI) for each service in your platform. We have adopted this approach and it allows us not only to monitor and gauge our success in production, but it gives us a guidepost for analzying benchmark and performance test results prior to launching new features.  
+
+If you have not read it, read Site Reliability Engineering by Google  
+
+If there is one thing i have learned from building scalable platforms, it is that every milisecond matters. 1ms does not matter at low volume but add 1ms to the processing of 1 million messages and you have added 15 minutes to processing time. Adding 1ms for one billion messages adds 277 hours.  
+
+> Every milisecond matters. Adding 1 milisecond of processing to one billion messages add 277 hours to processing time.  
+
+Here are some recommednations based on experience:  
+- be smart about what data you include on your payloads
+- add constraints to the amount of data you incldue on your payload to control performance and expense
+- never use transactional database as a queue, especially when you expect high volumes.
+    - Databases like SQL have to write every transaction to a transaction log. Waits on writes to the transaction log will kill your performance.
+    - Also, reading and writing from the same table will 100% result in locks on the table and IO waits that drastically increase IO wait times.
+- there are two dates that matter in event-driven systems:
+    - the actual even data
+        - the time at which a user or system action occured
+    - the proccessed date
+        - usually the time the even was ingested by the system
+    - the distinction in date is important because your architecture should manage late arrivals if you are performing any sort of logic within a window
+    
+> Given the last bullet point, imagine that the school principal is required to count all the students that arrive to school for that day. She spends 20 minutes as all the busses arrive and ends up with 620 students. Then she stops counting. The window closed. But let's say that one bus was 1- minutes late because a traffic light was out of service. The principal would have to go back and add the additional 80 students to her original tally. This same sort of reconciliation would have to occur in your system.  
+
+
+### Sledgehammer Syndrome
+
+Finally, event-driven architecture is not the right pattern for all applications. Quite the contrary, such a pattern introduces the complexity of its own.
+
+> Don't fall victim to Sledgehammer Syndrom
+
+EDA could very likely be a sledgehammer for your problem when you instead need a screwdriver. Take into account the cost of development and maintainance when deciding if this is the right solution for you.  
+
+When considering the complexity that the solution will require and whether it's worth the investment, determine how you will tackle the following:  
+
+When considering the complexity that the solution will require and whether it is worth the investment, determine how you will tackle the following:  
+
+1. what is the right level of fidelity of service abstraction
+2. are your event messages schema or schema-less
+3. how does your system handle failures caused by bad or corrupt data, downed services or queues
+4. how do you handle a noisy neighbor problem (sharing cloud resources with other services affect your performance if they are hogging bandwidth)
+5. how will you debug and undestand the flow of events through the system
+6. how do you handle events that are not idempotent
+7. how will your system handle cycle prevention and detection
+8. how will your system handle rollback of a distrubuted transaction
+
+### Conclusion
+
+To sum it up, EDAs are:  
+- highly scalable and decentralized
+- can processes events and perform functions like aggregate at time of ingestion
+- eliminate point-to-point integration
+
+Consider emplying an EDA when:  
+- you require low latency and high volume processing
+- you require aggregating or processing data real-time within a window
+- more than one service needs to processes the same event
+- you need to horizontally scale a distributed system
+- you want to implement a microservice architecture
+
