@@ -2,6 +2,8 @@
 
 By: Maxime Beauchemin
 
+Last Updated: 1/8/18
+
 Source: [medium link](https://medium.com/@maximebeauchemin/functional-data-engineering-a-modern-paradigm-for-batch-data-processing-2327ec32c42a)
 
 ### Batch Data Processing
