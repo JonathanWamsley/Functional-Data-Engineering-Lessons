@@ -194,7 +194,8 @@ Follow those steps by creating a new file test_sum_unittest.py with the followin
 ### Where to write the test
 
 <p>
-    To get started writing tests, you can simply create a file called test.py, which will contain your first test case. Because the file will need to be able to import your applications to be able to test it, you want to place test.py above the package folder, so your directroy tree will look something like this:  
+    To get started writing tests, you can simply create a file called test.py, which will contain your first test case. 
+    Because the file will need to be able to import your applications to be able to test it, you want to place test.py above the package folder, so your directroy tree will look something like this:  
 
     project/
     │
@@ -203,7 +204,9 @@ Follow those steps by creating a new file test_sum_unittest.py with the followin
     |
     └── test.py
     
-    You will find that, as you add more and more tests, your single file will become cluttered and hard to maintain, so you can create a folder called tests/ and split the tests into multiple files. It is convention to ensure each file starts with test_ so all test runners will assume that Python file contains tests to be executed. Some very large projects split tests into more subdirectories based on their purpose or usage.  
+    You will find that, as you add more and more tests, your single file will become cluttered and hard to maintain, so you can create a folder called tests/ and split the tests into multiple files.
+    It is convention to ensure each file starts with test_ so all test runners will assume that Python file contains tests to be executed.
+    Some very large projects split tests into more subdirectories based on their purpose or usage.  
     
 </p>
 
@@ -333,7 +336,8 @@ Now that you have created the first test, you want to execute it. Sure you know 
     if __name__ == '__main__':
         unittest.main()
     
-    This is a command line entry point. It means you execute the scirpt alone by running python test.py at the command line, it will call unittest.main(). This executes the test runner by discovering alll classes in this file that inherit from unittest.TestCase.  
+    This is a command line entry point. It means you execute the scirpt alone by running python test.py at the command line, it will call unittest.main(). 
+    This executes the test runner by discovering alll classes in this file that inherit from unittest.TestCase.  
     
     This is one of many ways to execute the unittest test runner. WHen you have a singe test file named test.py, callling python test,oy is a greay way to get started.  
     
@@ -360,7 +364,7 @@ Now that you have created the first test, you want to execute it. Sure you know 
     
     This will search the current directory for any files names tests*.py and attempt to test them. 
     
-    Once you have multiple test files, as long as you follow the test*.py naming pattern, you can provide the name of the directorying instead by using the -s flag and the name of the directory: 
+    Once you have multiple test files, as long as you follow the test*.py naming pattern, you can provide the name of the directory instead by using the -s flag and the name of the directory: 
     
     python -m unittest discover -s tests
     
@@ -588,6 +592,204 @@ Here is an example of that strucute if the data consisted of JSON files:
             ├── __init__.py
             └── test_integration.py
     
-    Within your test case, you can use the .setUp() method to load the test data from a fixture file in a known path and execute many tests aagainst that test data. Remember you can have multiple test cases in a single Python file, and the unittest discovery will execute both. You can have one test case for each set of test data:  
+    Within your test case, you can use the .setUp() method to load the test data from a fixture file in a known path and execute many tests aagainst that test data.
+    Remember you can have multiple test cases in a single Python file, and the unittest discovery will execute both. You can have one test case for each set of test data:  
     
+    import unittest
+
+
+    class TestBasic(unittest.TestCase):
+        def setUp(self):
+            # Load test data
+            self.app = App(database='fixtures/test_basic.json')
+
+        def test_customer_count(self):
+            self.assertEqual(len(self.app.customers), 100)
+
+        def test_existence_of_customer(self):
+            customer = self.app.get_customer(id=10)
+            self.assertEqual(customer.name, "Org XYZ")
+            self.assertEqual(customer.address, "10 Red Road, Reading")
+
+
+    class TestComplexData(unittest.TestCase):
+        def setUp(self):
+            # load test data
+            self.app = App(database='fixtures/test_complex.json')
+
+        def test_customer_count(self):
+            self.assertEqual(len(self.app.customers), 10000)
+
+        def test_existence_of_customer(self):
+            customer = self.app.get_customer(id=9999)
+            self.assertEqual(customer.name, u"バナナ")
+            self.assertEqual(customer.address, "10 Red Road, Akihabara, Tokyo")
+
+    if __name__ == '__main__':
+        unittest.main()
+
+    If your application depends on data from a remote location, like a remote API, you will want to ensure your tests are repeateable. 
+    Having your tests fail because the API is offline or there is a connectivity issue could slow down development.
+    In these types of situations, it is best practice to store remote fictures locally so they can be recalled and sent to the application.  
+    
+    The requests library has a complimentary package called responses that gives you ways to create response fixtures and save them in your test folders.
+    https://github.com/getsentry/responses
+    
+</p>
+
+### Testing multiple enviornments
+
+So far, you have been testing against a single version of Python using a virtual enviornment with a specific set of dependencies. You might want to check that your application works on multiple versions of Python, or multiple versions of a package. Tox is an application that automates testing in multiple enviornments.  
+
+### Installing Tox
+    
+Tox is available on PyPi as a package via pip:  
+
+pip install tox  
+
+Now that you have Tox installed, it needs to be configured.  
+
+##### Configuring Tox for your dependencies
+
+Tox is configured via a configuration file in your project directoy. The tox configuration file contains the following:  
+- the command to run in order to execute tests
+- any additional packages required before executing
+- the target Python versions to test against
+
+Instead of having to learn the Tox configuration syntax, you can get a head start by running the quickstart application:  
+
+tox-quickstart  
+
+The Tox configuration tool will ask you those questions and create a file similar to the following in tox.ini:  
+
+<p>
+    In config file
+    
+    [tox]
+    envlist = py27, py36
+    
+    [testenv]
+    deps = 
+    
+    comands = 
+        python -m unittest discover
+    
+    Before you can run Tox, it requires that you have a setup.py file in your application folder containing the steps to install your package.
+    If you don't have one, you can follow this guide on how to create a setup.py before you continue. 
+    
+    https://packaging.python.org/tutorials/packaging-projects/#setup-py
+    
+    Alternatively, if your project is not for distribution on PyPi, you can skip this requirement by adding the following line in tox.ini file under the [tox] heading:
+    
+    in config file
+    
+    [tox]
+    envlist = py27, py36
+    skipdist = True
+    
+    If you don't create a setup.py, and your application has some dependencies from PyPi, you will need to specify those on a number of lines under the [testenv] section.
+    For example, Django would require the following: 
+    
+    in config file
+    
+    [testenv]
+    deps = django
+    
+    
+    Once you have completed that stage, you are ready to run the tests.
+    
+    You can now execute Tox, and it will create two virtual enviornments: one for Python 2.7 and one for Python 3.6. 
+    The Tox directoy is called .tox/. Within the .tox. directory, Tox will execute python -m unittest dicover against each virtual enviornment.
+    
+    You can run this process by calling Tox at the command line:
+    
+    tox
+    
+    Tox will output the results of your tests against each enviornment.
+    The first time it runs, Tox takes a little bit of time to create the virtual enviornment, but once it has, the second execution will be a lot faster.
+    
+</p>
+
+##### Executing Tox
+
+<p>
+    The output of tox is quite straitforward. It creates and enviorment for refactoring version, installs your dependencies, and the runs the test commands. 
+    
+    There re some additional command line options that are gret to remember.
+    
+    Run only a single enviorment, such as Python 3.6
+    
+    tox -e py34
+    
+    doc info
+    https://tox.readthedocs.io/en/latest/
+</p>
+
+### Automating the execution of your tets
+
+<p>
+    So far, you have been executing the tests manually by running a command. 
+    There are some tools for executing tests automatically when you make changes and commit them to a source-control repository like Git.
+    Automated testing tools are often knwon as CI/CD tools, which stands for 'Continuous Integration/ Continuous Deployment.'
+    They can run your tests, compile and publish any application, and even deploy them into production.  
+
+    Travis CI is one of many available CI (Continuous Integration) services available. 
+    
+    Travis CI works nicely with Python, and now that you have created all these tests, you can automate the executuion of them in the cloud! Travis CI is free for any open source project on GitHub and GitLab and is available for a charge for private projects.
+    
+    To get started, login to the website and authenticate your github or gitlab credentials. Then create a file called .travis.yml with the following contents: 
+    
+    language: python
+    python:
+      - "2.7"
+      - "3.7"
+    install:
+      - pip install -r requirements.txt
+    script:
+      - python -m unittest discover
+    
+    This configuration instructs Tavis CI to:
+    1. Test against Python 2.7 and 3.7
+    2. Install al the packages you list in the requirements.txt
+    3. Run python -m unittest discover to run the tests
+    
+    Once you have commited and pushed this file, Travis CI will run these commands every time you push to your remote Git repository.
+    You can check out the results on their website.
+    
+</p>
+
+### Aggressive Linting with a code formatter
+
+Black is a very unforgiving formatter. It does not have any configuration options, and it has a very specific style. THis makes it great as a drop-in tool to put in your test pipeline.  
+
+pip install black  
+
+THen to run black at the command line, provide the file or directory you want to format:  
+
+black test.py  
+
+### Keep your test code clean
+
+When writing tests, you may find that you end up copying and pasting code a lot more than you would in regular applications. Test can be very repetitive at times, but that is by no means a reason to leave your code sloppy and hard to maintain.  
+
+Over time, you will develop a lot of technical debt in your test code, and if you have significant changes to your application that requre changes to your tests, it can be more cumbersome task than necessary because of the way tou structured them.  
+
+Try to follow the DRY principle when writing tests: Don't Repeat Yourself.  
+
+Test fixtures and functions are a great way to produce test code that is easier to maintain.  
+
+### Conclusion
+
+Python has made testing accessible by building the commmands and libraries you need to validate that your application work as designed. Getting started with testing in Python does not need to be complicated: you can use unittest and write small. maintainable methods to validate your code.  
+
+As you learn more about testing and your application gorws, you can consider switching to one of the other test frameworks, like pytest, and start to leverage more advance features.  
+
+### Final thoughts
+
+- I will perform unit test and integration tests on my pokemon cards project
+- I will look into travis CI/CD
+- I will format with black
+
+
+
     
